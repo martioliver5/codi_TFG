@@ -1,0 +1,514 @@
+---
+title: "EDA"
+author: "Martí Oliver"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+Carreguem els paquets necessaris per executar totes les consultes.
+
+```{r}
+library(dplyr)
+library(factoextra)
+library(readxl)
+library(summarytools)
+library(compareGroups)
+citation("compareGroups")
+library("FactoMineR")
+citation("FactoMineR")
+library("factoextra")
+citation("factoextra")
+library(DataExplorer)
+```
+
+
+#CENS DEFINITIU
+
+Carreguem la base de dades
+
+```{r}
+bd <- read_excel("C:/Users/usuari/OneDrive/Escriptori/TFG/BBDD/BASE EDA.xlsx")
+head(bd)
+```
+
+Canviem el nom de les variables perquè siguin més fàcils d'identificar
+
+```{r}
+noms <- c("Survey answered?","Name","Gender","Email","City","Country","Country categoritzat","Center","Type","Research group?","Link of research group","Number of members","Research group name","Total citations in GS","Total citations in GS since 2018","Total citations in GS acording H-index","Total citations in GS acording H-index since 2018","Number of citations of the article with most citations","Link of GS")
+colnames(bd) <- noms
+attach(bd)
+```
+
+Transformem les variables categòriques a factor
+
+```{r}
+bd <- bd %>% mutate_if(sapply(bd, is.character), as.factor)
+str(bd)
+bd <- as.data.frame(bd)
+```
+
+**Anàlisi univariant**
+
+Mirem les freqüències i mesures estadístiques més destacades.
+
+*Variable Surbey answered?*
+
+```{r}
+freq(`Survey answered?`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Gender*
+
+```{r}
+freq(Gender, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Country categoritzat*
+
+```{r}
+freq(`Country categoritzat`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Type*
+
+```{r}
+freq(Type, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Research group?*
+
+```{r}
+freq(bd$`Research group?`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Number of members*
+
+```{r}
+a <- `Number of members`
+value_to_remove <- 0
+# Troba els índexos dels elements que coincideixen amb el valor a eliminar
+índexs <- which(a == value_to_remove)
+# Elimina els elements del vector utilitzant l'operador de subconjunt
+a <- a[-índexs]
+summary(a)
+sd(a)
+```
+
+*Variable Total citations in GS*
+
+```{r}
+a <- `Total citations in GS`
+value_to_remove <- 0
+índexs <- which(a == value_to_remove)
+a <- a[-índexs]
+summary(a)
+sd(a)
+```
+
+*Variable Total citations in GS since 2018*
+
+```{r}
+a <- `Total citations in GS since 2018`
+value_to_remove <- 0
+índexs <- which(a == value_to_remove)
+a <- a[-índexs]
+summary(a)
+sd(a)
+```
+
+*Variable Total citations in GS acording H-index*
+
+```{r}
+a <- `Total citations in GS acording H-index`
+value_to_remove <- 0
+índexs <- which(a == value_to_remove)
+a <- a[-índexs]
+summary(a)
+sd(a)
+```
+
+*Variable Total citations in GS acording H-index since 2018*
+
+```{r}
+a <- `Total citations in GS acording H-index since 2018`
+value_to_remove <- 0
+índexs <- which(a == value_to_remove)
+a <- a[-índexs]
+summary(a)
+sd(a)
+```
+
+*Variable Number of citations of the article with most citations*
+
+```{r}
+a <- `Number of citations of the article with most citations`
+value_to_remove <- 0
+índexs <- which(a == value_to_remove)
+a <- a[-índexs]
+summary(a)
+sd(a)
+```
+
+**Anàlisi bivariant**
+
+Realitzem un test de Shapiro-Wilk per saber si les variables numèriques segueixen una distribució normal.
+
+```{r}
+shapiro.test(`Number of members`)
+shapiro.test(`Total citations in GS`)
+shapiro.test(`Total citations in GS since 2018`)
+shapiro.test(`Total citations in GS acording H-index`)
+shapiro.test(`Total citations in GS acording H-index since 2018`)
+shapiro.test(`Number of citations of the article with most citations`)
+```
+
+Comparació entre variable resposta i totes les altres variables.
+
+```{r}
+compareGroups(`Survey answered?`~., data = bd, method = 2)
+```
+
+*Variable Country categoritzat*
+
+```{r}
+comp_country_categoritzat <- compareGroups(`Survey answered?`~ `Country categoritzat`, data = bd)
+createTable(comp_country_categoritzat)
+```
+
+*Variable Research group*
+
+```{r}
+comp_group <- compareGroups(`Survey answered?`~ `Research group?`, data = bd)
+createTable(comp_group)
+```
+
+*Variable Number of members*
+
+```{r}
+comp_number_members <- compareGroups(`Survey answered?`~ `Number of members`, data = bd, method = 2)
+createTable(comp_number_members)
+getResults(comp_number_members)
+```
+
+
+
+**ANÀLISI DE CORRELACIÓ DE VARIABLES**
+
+Creem la matriu de correlacions
+
+```{r}
+var_num <- bd[12:18]
+var_num <- var_num[-2]
+noms <- c("Var1","Var2","Var3","Var4","Var5","Var6")
+colnames(var_num) <- noms
+plot_correlation(var_num, title = "Matriu de correlacions entre les variables numèriques")
+```
+
+Creem un Anàlisi de Components Principals.
+
+Primer veiem numèricament la inèrcia de cada component
+
+```{r}
+x <- princomp(var_num, cor = TRUE)
+summary(x)
+```
+
+I ara gràficament
+
+```{r}
+res.pca <- PCA(var_num, graph = FALSE)
+fviz_eig(res.pca, addlabels = TRUE, main = "Gràfic de les variàncies segons cada component", xlab = "Compnents", ylab = "Percentatge de la variància explicada")
+```
+
+I finalment creem el gràfic PCA
+
+```{r}
+fviz_pca_var(res.pca, col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+             repel = TRUE, xlab = "Component 1 (63%)", ylab = "Component 2 (16,5%)")
+```
+
+
+#BASE DE DADES D'ANÀLISI 
+
+Carreguem la base de dades
+
+```{r}
+bd <- read_excel("C:/Users/usuari/OneDrive/Escriptori/TFG/BBDD/BD ANÀLISI.xlsx")
+head(bd)
+```
+
+Canviem el nom de les variables perquè siguin més fàcils d'identificar
+
+```{r}
+noms <- c("Gender","Age group","Country categorized","Type","Highest level of education","Years worked in sports statistics in academia","Profile","Currently belong to a sports statistics research group?","Total citations in GS","Total citations in GS since 2018","Total citations in GS acording H-index","Total citations in GS acording H-index since 2018","Number of citations of the article with most citations","Number of sports studied")
+colnames(bd) <- noms
+attach(bd)
+```
+
+Canviem les variables categòriques a un factor, per tal que aquestes puguin ser tractades més fàcilment
+
+```{r}
+# Primer transformem la base de dades en un data frame
+bd <- data.frame(bd)
+# Llavors identifiquem les variables categòriques i les ajuntem totes en un vector.
+x <- c()
+for(i in 1:ncol(bd)){
+  if(is.character(bd[,i])){
+    x <- c(x,i)
+  }
+}
+# Finalment les declarem com a factor
+for(i in x) {
+  bd[,i]<-as.factor(bd[,i])
+}
+# Per acabar, comprovem que s'han transformat en un vector
+str(bd)
+```
+
+**Anàlisi univariant**
+
+Mirem les freqüències i mesures estadístiques més destacades.
+
+*Variable Gender*
+
+```{r}
+freq(Gender, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Age group*
+
+```{r}
+freq(`Age group`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Country categorized* 
+
+```{r}
+freq(`Country categorized`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Type*
+
+```{r}
+freq(Type, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Highest level of education*
+
+```{r}
+freq(`Highest level of education`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable years worked in sports statistics in academia*
+
+```{r}
+freq(`Years worked in sports statistics in academia`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Profile*
+
+```{r}
+freq(Profile, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Currently belong to a sports statistic research group?*
+
+```{r}
+freq(`Currently belong to a sports statistics research group?`, cum = F, headings = F, round.digits = 2)
+```
+
+*Variable Total citations in GS*
+
+```{r}
+summary(`Total citations in GS`)
+sd(`Total citations in GS`)
+```
+
+*Variable Total citations in GS since 2018*
+
+```{r}
+summary(`Total citations in GS since 2018`)
+sd(`Total citations in GS since 2018`)
+```
+
+*Variable Total citations in GS acording H-index*
+
+```{r}
+summary(`Total citations in GS acording H-index`)
+sd(`Total citations in GS acording H-index`)
+```
+
+*Variable Total citations in GS acording H-index since 2018*
+
+```{r}
+summary(`Total citations in GS acording H-index since 2018`)
+sd(`Total citations in GS acording H-index since 2018`)
+```
+
+*Variable Number of citations of the article with most citations*
+
+```{r}
+summary(`Number of citations of the article with most citations`)
+sd(`Number of citations of the article with most citations`)
+```
+
+*Variable Number of sports studied*
+
+```{r}
+summary(`Number of sports studied`)
+sd(`Number of sports studied`)
+```
+
+**Anàlisi bivariant**
+
+Realitzem un test de Shapiro-Wilk per saber si les variables numèriques segueixen una distribució normal.
+
+```{r}
+shapiro.test(`Total citations in GS`)
+shapiro.test(`Total citations in GS since 2018`)
+shapiro.test(`Total citations in GS acording H-index`)
+shapiro.test(`Total citations in GS acording H-index since 2018`)
+shapiro.test(`Number of citations of the article with most citations`)
+shapiro.test(`Number of sports studied`)
+```
+
+Comparació entre variable resposta i totes les altres variables.
+
+*Variable Gender*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Gender~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+```{r}
+# Només mirar Country, Type i Research group
+compareGroups(Gender~., data = bd, method = 2, chisq.test.perm = T)
+```
+
+*Variable Age group*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Age.group~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+```{r}
+# Només mirar Country, Type i Research group
+compareGroups(Age.group~., data = bd, method = 2, chisq.test.perm = T)
+```
+
+*Variable Country categorized*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Country.categorized~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+*Variable Type*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Type~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+```{r}
+# Només mirar Country, Type i Research group
+compareGroups(Type~., data = bd, method = 2, chisq.test.perm = T)
+```
+
+*Variable Highest level of education*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Highest.level.of.education~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+```{r}
+# Només mirar Country, Type i Research group
+compareGroups(Highest.level.of.education~., data = bd, method = 2, chisq.test.perm = T)
+```
+
+*Variable Years worked in sports statistics in academia*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Years.worked.in.sports.statistics.in.academia~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+```{r}
+# Només mirar Country, Type i Research group
+compareGroups(Years.worked.in.sports.statistics.in.academia~., data = bd, method = 2, chisq.test.perm = T)
+```
+
+*Variable Years worked in sports statistics in academia*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Profile~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+```{r}
+# Només mirar Country, Type i Research group
+compareGroups(Profile~., data = bd, method = 2, chisq.test.perm = T)
+```
+
+*Variable Currently belong to a sports statistics research group?*
+
+```{r}
+# NO mirar Country, Type i Research group 
+compareGroups(Currently.belong.to.a.sports.statistics.research.group.~., data = bd, method = 2, chisq.test.perm = F)
+```
+
+```{r}
+# Només mirar Country, Type i Research group
+compareGroups(Currently.belong.to.a.sports.statistics.research.group.~., data = bd, method = 2, chisq.test.perm = T)
+```
+
+Comparació entre el país categoritzat i els anys treballats
+
+```{r}
+createTable(compareGroups(Country.categorized~Years.worked.in.sports.statistics.in.academia, data = bd, chisq.test.perm = F))
+createTable(compareGroups(Country.categorized~Years.worked.in.sports.statistics.in.academia, data = bd, chisq.test.perm = F), show.p.mul=TRUE)
+```
+
+Comparació entre el nivell d'educació i els anys treballats 
+
+```{r}
+createTable(compareGroups(Years.worked.in.sports.statistics.in.academia~Highest.level.of.education, data = bd, chisq.test.perm = F))
+createTable(compareGroups(Years.worked.in.sports.statistics.in.academia~Highest.level.of.education, data = bd, chisq.test.perm = F), show.p.mul=TRUE)
+```
+
+*Anàlisi de correlació de les variables numèriques*
+
+```{r}
+var_num <- bd[9:14]
+noms <- c("Total citations","Total citations since 2018","Total citations H-index","Total citations H-index since 2018","Article with most citations", "Number of sports studied")
+colnames(var_num) <- noms
+```
+
+Creem la matriu de correlacions
+
+```{r}
+noms <- c("Var1","Var2","Var3","Var4","Var5","Var6")
+colnames(var_num) <- noms
+plot_correlation(var_num, title = "Matriu de correlacions entre les variables numèriques")
+```
+
+Creem un Anàlisi de Components Principals.
+
+Veiem gràficament la inèrcia de cada component
+
+```{r}
+res.pca <- PCA(var_num, graph = FALSE)
+fviz_eig(res.pca, addlabels = TRUE, main = "Gràfic de les proporcions de les variàncies segons cada component", xlab = "Compnents", ylab = "Percentatge de la variància explicada")
+```
+
+I finalment creem el gràfic PCA
+
+```{r}
+fviz_pca_var(res.pca, col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+             repel = TRUE, xlab = "Component 1 (69%)", ylab = "Component 2 (15,8%)")
+```

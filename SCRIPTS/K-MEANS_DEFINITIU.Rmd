@@ -1,0 +1,99 @@
+---
+title: "K-MEANS"
+author: "Martí Oliver"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+Carreguem els paquets que necessitarem i fixem una llavor.
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(factoextra)
+library(cluster)
+library(purrr)
+library(tibble)
+library(dplyr)
+set.seed(5)
+```
+
+Carreguem la base de dades.
+
+```{r}
+bd <- read_excel("C:/Users/usuari/OneDrive/Escriptori/TFG/BBDD/BD ANÀLISI.xlsx")
+head(bd)
+```
+
+Canviem el nom de les variables perquè siguin més fàcils d'identificar.
+
+```{r}
+noms <- c("Gender","Age group","Country categorized","Type","Highest level of education","Years worked in sports statistics in academia","Profile","Currently belong to a sports statistics research group?","Total citations in GS","Total citations in GS since 2018","Total citations in GS acording H-index","Total citations in GS acording H-index since 2018","Number of citations of the article with most citations","Number of sports studied")
+colnames(bd) <- noms
+attach(bd)
+```
+
+Calculem l'índex de Hopkins
+
+```{r}
+aux <- bd %>% select(where(is.numeric))
+H <- get_clust_tendency(aux, n = nrow(aux)-1, graph = FALSE)
+rm(aux)
+H$hopkins_stat
+```
+
+Seleccionem només les variables numèriques i les estandaritzem.
+
+```{r}
+dcon <- data.frame (bd$`Total citations in GS`,bd$`Total citations in GS since 2018`,bd$`Total citations in GS acording H-index`,bd$`Total citations in GS acording H-index since 2018`,bd$`Number of citations of the article with most citations`,bd$`Number of sports studied`)
+dim(dcon)
+rangeStandardize <- function(x) {
+  (x - min(x)) / diff(range(x))
+}
+dcon <- as.data.frame(lapply(dcon, rangeStandardize))
+```
+
+Utilitzem l'elbow method per determinar la k òptima.
+
+```{r}
+result <- fviz_nbclust(x = scale(dcon, center = TRUE, scale = TRUE), FUNcluster = pam, method = "wss", k.max = 8,
+             diss = dist(scale(dcon, center = TRUE, scale = TRUE), method = "manhattan"))
+result + ggtitle("Nombre òptim de clusters segons l'elbow method") + xlab("Nombre de clústers") + ylab("Suma quadràtica total entre grups (wss)")
+```
+
+Ara utilitzem el silhouette method.
+
+```{r}
+result <- fviz_nbclust(x = scale(dcon, center = TRUE, scale = TRUE), FUNcluster = pam, method = "silhouette", k.max = 8,
+             diss = dist(scale(dcon, center = TRUE, scale = TRUE), method = "manhattan"))
+result + ggtitle("Nombre òptim de clusters segons el Silhouette method") + xlab("Nombre de clústers") + ylab("Average silhouette")
+```
+
+Executem l'algoritme k-means amb k = 3.
+
+```{r}
+k1 <- kmeans(dcon,3)
+k1$size
+```
+
+```{r}
+k1$withinss
+bd$cluster <- k1$cluster
+```
+
+```{r}
+set.seed(5)
+object <- list(
+  data = dcon,
+  cluster = bd$cluster)
+tibble(i=1,j=2) %>% 
+  pwalk(function(i,j) {
+    fviz_cluster(object, axes=c(i, j), geom="point", 
+                 main="Gràfic dels clústers després d'aplicar l'algoritme K-MEANS",
+                 xlab = "PC1 (69%)", ylab = "PC2 (15,8%)",
+                 ellipse.alpha = 0.2, labelsize = 9, 
+                 pointsize=1.0, repel = TRUE,
+                 show.clust.cent = F)  %>% 
+      print() 
+  })
+```

@@ -1,0 +1,422 @@
+---
+title: "KAMILA"
+author: "Martí Oliver"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+Carreguem els paquets que necessitarem i fixem una llavor.
+
+```{r}
+library(readxl)
+library(dplyr)
+citation("dplyr")
+library(factoextra)
+citation("factoextra")
+library(kamila)
+citation("kamila")
+library(kableExtra)
+library(compareGroups)
+set.seed(5)
+```
+
+
+Carreguem les dades a analitzar.
+
+```{r}
+bd <- read_excel("C:/Users/usuari/OneDrive/Escriptori/TFG/BBDD/BD ANÀLISI.xlsx")
+head(bd)
+```
+
+Canviem el nom de les variables perquè siguin més fàcils d'identificar.
+
+```{r}
+noms <- c("Gender","Age group","Country categorized","Type","Highest level of education","Years worked in sports statistics in academia","Profile","Currently belong to a sports statistics research group?","Total citations in GS","Total citations in GS since 2018","Total citations in GS acording H-index","Total citations in GS acording H-index since 2018","Number of citations of the article with most citations","Number of sports studied")
+colnames(bd) <- noms
+attach(bd)
+```
+
+Creem un data frame amb només les variables numèriques.
+
+```{r}
+conInd <- bd %>% select(where(is.numeric)) %>% names(.)
+conVars <- bd[, conInd]
+summary(conVars)
+str(conVars)
+length(conVars)
+```
+
+Estandarditzem les dades de les varaibles numèriques.
+
+```{r}
+rangeStandardize <- function(x) {
+  (x - min(x)) / diff(range(x))
+}
+conVars <- as.data.frame(lapply(conVars, rangeStandardize))
+```
+
+Creem un data frame amb només les variables categòriques.
+
+```{r}
+conInd_index <- which(names(bd) %in% conInd)
+catVars <- bd[, -conInd_index]
+summary(catVars)
+str(catVars)
+```
+
+Les transformem a factor
+
+```{r}
+catVars <- catVars %>% mutate_if(sapply(catVars, is.character), as.factor)
+str(catVars)
+catVars <- as.data.frame(catVars)
+```
+
+Executem l'algoritme KAMILA
+
+```{r}
+set.seed(5)
+numberOfClusters <- 2:10
+kmResPs <- kamila(conVar=conVars, 
+                  catFactor=catVars, 
+                  numClust=numberOfClusters,
+                  calcNumClust="ps",
+                  predStrThresh = 0.65,
+                  numInit = 10,
+                  maxIter= 100)
+```
+
+Calculem els valors prediction strength per a cada clúster.
+
+```{r}
+kmResPs$nClust$psValues
+kable(kmResPs$nClust$psValues) %>%
+ kable_classic(full_width = F, html_font = "Calibri", font_size = 12)
+```
+
+Creeem el gràfic amb els diferents valors prediction strength, que ens servirà per determinar el nombre de clústers òptim.
+
+```{r}
+psPlot <- with(kmResPs$nClust, qplot(numberOfClusters, psValues) +
+                 geom_errorbar(aes(x = numberOfClusters, ymin = psValues - stdErrPredStr,
+                                   ymax = psValues + stdErrPredStr), width = 0.25))
+psPlot <- psPlot + geom_hline(yintercept = 0.65, lty = 2)
+psPlot <- psPlot + scale_x_continuous(breaks = numberOfClusters) + ylim(0, 1.1)
+psPlot + ggtitle("Valors prediction strength segons el nombre de clústers") +
+            theme(plot.title = element_text(hjust = 0.5)) + 
+            xlab("Nombre de clústers") + ylab("Preduction strength (ps)")
+```
+
+Calculem el nombre òptim de clusters.
+
+```{r}
+#Optimal Number of clusters
+kmResPs$nClust$bestNClust
+```
+
+El nombre d'observacions i la distància Euclideana entre els dos clusters és la següent:
+
+```{r}
+table(kmResPs$finalMemb)
+dist(kmResPs$finalCenters)
+```
+
+Incorporem una nova variable que ens indiqui a quin clúster pertany cada observació
+
+```{r}
+length(kmResPs$finalMemb)==nrow(bd) #Must be TRUE
+df.vars.all.complete.w5.km2 <- cbind(bd, Cluster = factor(kmResPs$finalMemb))
+dim(df.vars.all.complete.w5.km2) 
+table(df.vars.all.complete.w5.km2$Cluster)
+```
+
+```{r}
+object <- list(
+  data = conVars,
+  cluster = df.vars.all.complete.w5.km2$Cluster)
+library(purrr)
+tibble(i=1,j=2) %>% 
+  pwalk(function(i,j) {
+    fviz_cluster(object, axes=c(i, j), geom="point", 
+                 main="Gràfic dels clústers després d'aplicar l'algoritme KAMILA",
+                 xlab = "PC1 (69%)", ylab = "PC2 (15,8%)",
+                 ellipse.alpha = 0.2, labelsize = 9, 
+                 pointsize=1.0, repel = TRUE,
+                 show.clust.cent = F)  %>% 
+      print() 
+  })
+```
+
+Ara eliminem les tres observacions atípiques i tornem a executar l'algoritme.
+
+```{r}
+bd <- bd[-28,]
+bd <- bd[-34,]
+bd <- bd[-70,]
+```
+
+Creem un data frame amb només les variables numèriques.
+
+```{r}
+conInd <- bd %>% select(where(is.numeric)) %>% names(.)
+conVars <- bd[, conInd]
+summary(conVars)
+str(conVars)
+length(conVars)
+```
+
+Estandarditzem les dades de les varaibles numèriques.
+
+```{r}
+rangeStandardize <- function(x) {
+  (x - min(x)) / diff(range(x))
+}
+conVars <- as.data.frame(lapply(conVars, rangeStandardize))
+```
+
+Creem un data frame amb només les variables categòriques.
+
+```{r}
+conInd_index <- which(names(bd) %in% conInd)
+catVars <- bd[, -conInd_index]
+summary(catVars)
+str(catVars)
+```
+
+Les transformem a factor
+
+```{r}
+catVars <- catVars %>% mutate_if(sapply(catVars, is.character), as.factor)
+str(catVars)
+catVars <- as.data.frame(catVars)
+```
+
+```{r}
+set.seed(5)
+numberOfClusters <- 2:10
+library(kamila)
+citation("kamila")
+kmResPs <- kamila(conVar=conVars, 
+                  catFactor=catVars, 
+                  numClust=numberOfClusters,
+                  calcNumClust="ps",
+                  predStrThresh = 0.65,
+                  numInit = 10,
+                  maxIter= 100)
+```
+
+Calculem els valors prediction strength per a cada clúster.
+
+```{r}
+library(kableExtra)
+kmResPs$nClust$psValues
+kable(kmResPs$nClust$psValues) %>%
+ kable_classic(full_width = F, html_font = "Calibri", font_size = 12)
+
+#kable(kmResPs$nClust$psValues) %>%
+#  kable_classic(table.attr = "style='display:inline'")
+
+#p <- kable(kmResPs$nClust$psValues) %>%
+#   kable_classic(full_width = F, html_font = "Calibri", font_size = 12)
+#t(p)
+```
+
+Creeem el gràfic amb els diferents valors prediction strength, que ens servirà per determinar el nombre de clústers òptim.
+
+```{r}
+psPlot <- with(kmResPs$nClust, qplot(numberOfClusters, psValues) +
+                 geom_errorbar(aes(x = numberOfClusters, ymin = psValues - stdErrPredStr,
+                                   ymax = psValues + stdErrPredStr), width = 0.25))
+psPlot <- psPlot + geom_hline(yintercept = 0.65, lty = 2)
+psPlot <- psPlot + scale_x_continuous(breaks = numberOfClusters) + ylim(0, 1.1)
+psPlot + ggtitle("Valors prediction strength segons el nombre de clústers") +
+            theme(plot.title = element_text(hjust = 0.5)) + 
+            xlab("Nombre de clústers") + ylab("Preduction strength (ps)")
+```
+
+Calculem el nombre òptim de clusters.
+
+```{r}
+#Optimal Number of clusters
+kmResPs$nClust$bestNClust
+```
+
+El nombre d'observacions i la distància Euclideana entre els dos clusters és la següent:
+
+```{r}
+table(kmResPs$finalMemb)
+dist(kmResPs$finalCenters)
+```
+
+Incorporem una nova variable que ens indiqui a quin clúster pertany cada observació
+
+```{r}
+length(kmResPs$finalMemb)==nrow(bd) #Must be TRUE
+df.vars.all.complete.w5.km2 <- cbind(bd, Cluster = factor(kmResPs$finalMemb))
+dim(df.vars.all.complete.w5.km2) 
+table(df.vars.all.complete.w5.km2$Cluster)
+```
+
+Després de determinar que el nombre òptim són dos clusters, els resultats, gràficament, són els següents:
+
+```{r}
+object <- list(
+  data = conVars,
+  cluster = df.vars.all.complete.w5.km2$Cluster)
+library(purrr)
+tibble(i=1,j=2) %>% 
+  pwalk(function(i,j) {
+    fviz_cluster(object, axes=c(i, j), geom="point", 
+                 main="Gràfic dels clústers després d'aplicar l'algoritme KAMILA",
+                 xlab = "PC1 (69%)", ylab = "PC2 (15,8%)",
+                 ellipse.alpha = 0.2, labelsize = 15, 
+                 pointsize=1.0, repel = TRUE,
+                 show.clust.cent = F)  %>% 
+      print() 
+  })
+```
+
+```{r}
+#What variables are important to create the clusters
+library(rpart)
+Cluster = factor(kmResPs$finalMemb)
+tree_W5 <- df.vars.all.complete.w5.km2 %>% 
+            rpart(Cluster ~ ., data=., method="class") 
+tree_W5$variable.importance
+```
+
+**Caracterització dels clústers**
+
+```{r}
+Cluster <- factor(kmResPs$finalMemb)
+```
+
+```{r}
+compareGroups(Cluster~., data = df.vars.all.complete.w5.km2, method = 2, chisq.test.perm = T)
+compareGroups(Cluster~., data = df.vars.all.complete.w5.km2, method = 2, chisq.test.perm = F)
+```
+
+Variables significatives
+
+*Comparació entre grups d'edat*
+
+```{r}
+comp_age_group <- compareGroups(Cluster ~ `Age group`, data = df.vars.all.complete.w5.km2, chisq.test.perm = F)
+createTable(comp_age_group, show.p.mul = T)
+
+comp_age_group <- compareGroups(`Age group`~Cluster, data = df.vars.all.complete.w5.km2, chisq.test.perm = F)
+createTable(comp_age_group, show.p.mul = T)
+```
+
+*Comparació entre país categoritzat*
+
+```{r}
+comp_country <- compareGroups(Cluster ~ `Country categorized`, data = df.vars.all.complete.w5.km2, chisq.test.perm = T)
+createTable(comp_country, show.p.mul = T, show.p.ratio = T)
+
+comp_country <- compareGroups(`Country categorized`~Cluster, data = df.vars.all.complete.w5.km2, chisq.test.perm = T)
+createTable(comp_country, show.p.mul = T)
+```
+
+*Comparació entre tipus d'universitat*
+
+```{r}
+comp_type <- compareGroups(Cluster ~ Type, data = df.vars.all.complete.w5.km2)
+createTable(comp_type, show.p.mul=TRUE)
+```
+
+*Comparació entre anys treballats*
+
+```{r}
+comp_years_worked <- compareGroups(Cluster ~ `Years worked in sports statistics in academia`, data = df.vars.all.complete.w5.km2, chisq.test.perm = F)
+createTable(comp_years_worked, show.p.mul=TRUE)
+
+comp_years_worked <- compareGroups(`Years worked in sports statistics in academia` ~ Cluster, data = df.vars.all.complete.w5.km2, chisq.test.perm = F)
+createTable(comp_years_worked, show.p.mul=TRUE)
+```
+
+*Comparació amb les cites totals*
+
+```{r}
+comp_tot_citations <- compareGroups(Cluster ~ `Total citations in GS` , data = df.vars.all.complete.w5.km2)
+createTable(comp_tot_citations, show.p.mul=TRUE)
+```
+
+*Comparació amb les cites totals des de 2018*
+
+```{r}
+comp_tot_citations <- compareGroups(Cluster ~ `Total citations in GS since 2018` , data = df.vars.all.complete.w5.km2)
+createTable(comp_tot_citations, show.p.mul=TRUE)
+```
+
+*Comparació amb les cites totals segon l'índex H*
+
+```{r}
+comp_tot_citations_acording_Hindex <- compareGroups(Cluster ~ `Total citations in GS acording H-index` , data = df.vars.all.complete.w5.km2)
+createTable(comp_tot_citations_acording_Hindex, show.p.mul=TRUE)
+```
+
+*Comparació amb les cites totals segon l'índex H des de 2018*
+
+```{r}
+comp_tot_citations_acording_Hindex <- compareGroups(Cluster ~ `Total citations in GS acording H-index since 2018` , data = df.vars.all.complete.w5.km2)
+createTable(comp_tot_citations_acording_Hindex, show.p.mul=TRUE)
+```
+
+*Comparació amb les cites de l'article amb més cites*
+
+```{r}
+comp_article_most_citations <- compareGroups(Cluster ~ `Number of citations of the article with most citations` , data = df.vars.all.complete.w5.km2)
+createTable(comp_article_most_citations, show.p.mul=TRUE)
+```
+
+Variables no significatives
+
+*Comparació entre gènere*
+
+```{r}
+comp_gender <- compareGroups(Cluster ~ Gender, data = df.vars.all.complete.w5.km2, chisq.test.perm = F)
+createTable(comp_gender, show.p.mul = T)
+```
+
+*Comparació entre nivell d'educació*
+
+```{r}
+comp_highest_level_education <- compareGroups(Cluster ~ `Highest level of education`, data = df.vars.all.complete.w5.km2, chisq.test.perm = F)
+createTable(comp_highest_level_education, show.p.mul=TRUE)
+```
+
+*Comparació entre perfils*
+
+```{r}
+comp_profile <- compareGroups(Cluster ~ Profile, data = df.vars.all.complete.w5.km2, chisq.test.perm = F)
+createTable(comp_profile, show.p.mul=TRUE)
+```
+
+*Comparació amb el nombre d'esports*
+
+```{r}
+comp_sports_studied <- compareGroups(Cluster ~ `Number of sports studied` , data = df.vars.all.complete.w5.km2)
+createTable(comp_sports_studied, show.p.mul=TRUE)
+```
+
+Boxplot de cada variable numèrica, estratificat per clúster
+
+```{r}
+(var_num1 <- ggplot(bd, aes(y = `Total citations in GS`, fill = Cluster)) + 
+    geom_boxplot())
+(var_num2 <- ggplot(bd, aes(y = `Total citations in GS since 2018`, fill = Cluster)) + 
+    geom_boxplot())
+(var_num3 <- ggplot(bd, aes(y = `Total citations in GS acording H-index`, fill = Cluster)) + 
+    geom_boxplot())
+(var_num4 <- ggplot(bd, aes(y = `Total citations in GS acording H-index since 2018`, fill = Cluster)) + 
+    geom_boxplot())
+(var_num5 <- ggplot(bd, aes(y = `Number of citations of the article with most citations`, fill = Cluster)) + 
+    geom_boxplot())
+(var_num6 <- ggplot(bd, aes(y = `Number of sports studied`, fill = Cluster)) + 
+    geom_boxplot())
+```
